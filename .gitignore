@@ -1,0 +1,32 @@
+# Generated results / experiment outputs
+results/
+
+# Generated data splits (regenerate via find_refusal_neurons/build_train_val.py)
+data/splits/
+
+# Generated contrastive examples (regenerate via find_concept_neurons/generation/)
+find_concept_neurons/examples_data/*.json
+
+# Activation databases (max_activations/build_activation_db.py)
+*.duckdb
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

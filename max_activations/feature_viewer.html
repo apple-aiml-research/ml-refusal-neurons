@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<!--
+  For licensing see accompanying LICENSE file.
+  Copyright (C) 2026 Apple Inc. All Rights Reserved.
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feature Activation Viewer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+
+        /* ---- Header ---- */
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+            color: #fff;
+            padding: 22px 30px;
+        }
+        .header h1 { font-size: 1.8em; margin-bottom: 4px; }
+        .header p  { opacity: .75; font-size: .9em; }
+
+        /* ---- Controls ---- */
+        .controls {
+            padding: 16px 30px;
+            background: #f4f6fa;
+            border-bottom: 1px solid #e0e4ed;
+            display: flex;
+            gap: 14px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .divider {
+            width: 1px;
+            height: 36px;
+            background: #cdd3e0;
+            align-self: flex-end;
+            margin: 0 4px;
+        }
+
+        .form-group { display: flex; flex-direction: column; gap: 5px; }
+        .form-group label { font-size: 12px; font-weight: 600; color: #667; text-transform: uppercase; letter-spacing: .4px; }
+
+        .form-group input,
+        .form-group select {
+            padding: 0 11px;
+            border: 1.5px solid #cdd3e0;
+            border-radius: 6px;
+            font-size: 14px;
+            background: #fff;
+            transition: border-color .2s;
+            height: 36px;
+            line-height: 36px;
+            display: block;
+            -webkit-appearance: auto;
+        }
+        .form-group input:focus,
+        .form-group select:focus { outline: none; border-color: #0f3460; }
+        .form-group input[type=number] { width: 90px; }
+        .form-group input[type=text]   { width: 240px; }
+
+        .btn {
+            padding: 0 18px;
+            height: 36px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity .15s, transform .1s;
+            align-self: flex-end;
+            white-space: nowrap;
+        }
+        .btn:hover   { opacity: .88; transform: translateY(-1px); }
+        .btn:active  { transform: translateY(0); }
+        .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+        .btn-primary   { background: #0f3460; color: #fff; }
+        .btn-secondary { background: #6c757d; color: #fff; }
+        .btn-search    { background: #9c6a00; color: #fff; }
+        .btn-sm { padding: 0 12px; height: 30px; font-size: 12px; }
+
+        /* ---- Results area ---- */
+        .results {
+            padding: 28px 30px;
+            min-height: 400px;
+        }
+
+        .hint {
+            text-align: center;
+            color: #8896a8;
+            padding: 60px 20px;
+        }
+        .hint h3 { margin-bottom: 8px; }
+
+        .error {
+            background: #fde8e8;
+            color: #7a1919;
+            border: 1px solid #f5c2c2;
+            border-radius: 6px;
+            padding: 16px 20px;
+        }
+
+        /* ---- Layer summary grid ---- */
+        .layer-info {
+            background: #e8f0fe;
+            border-left: 4px solid #0f3460;
+            border-radius: 6px;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+        }
+        .layer-info h2 { color: #1a1a2e; margin-bottom: 6px; }
+        .layer-info p  { color: #445; font-size: 14px; }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 12px;
+        }
+
+        .feature-card {
+            border: 2px solid #e0e4ed;
+            border-radius: 8px;
+            padding: 14px 16px;
+            cursor: pointer;
+            transition: all .18s;
+            background: #fff;
+        }
+        .feature-card:hover {
+            border-color: #0f3460;
+            box-shadow: 0 4px 14px rgba(15,52,96,.15);
+            transform: translateY(-2px);
+        }
+        .fc-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .fc-num    { font-weight: 700; color: #0f3460; font-size: 15px; }
+        .fc-maxact { font-weight: 600; color: #1a8c4e; font-size: 14px; }
+        .fc-minact { font-weight: 600; color: #c0392b; font-size: 14px; }
+        .fc-range  { font-size: 12px; color: #7a8799; margin-top: 2px; }
+
+        /* ---- Feature detail ---- */
+        .detail-header {
+            background: #e8f0fe;
+            border-left: 4px solid #0f3460;
+            border-radius: 6px;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+        }
+        .detail-header h2 { color: #1a1a2e; margin-bottom: 6px; }
+        .detail-header p  { color: #445; font-size: 14px; }
+
+        .buckets {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 24px;
+        }
+        @media (max-width: 960px) {
+            .buckets { grid-template-columns: 1fr; }
+        }
+
+        .bucket-section h3 {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            border-radius: 6px;
+        }
+        .bucket-top    h3 { background: #e6f9f0; color: #1a8c4e; }
+        .bucket-bottom h3 { background: #fde8e8; color: #c0392b; }
+        .bucket-random h3 { background: #fef3e2; color: #9c6a00; }
+
+        .act-item {
+            border: 1px solid #e0e4ed;
+            border-radius: 6px;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+            background: #fff;
+            font-size: 13px;
+        }
+        .act-item:hover { border-color: #aab; }
+
+        .act-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .act-rank  { color: #8896a8; font-size: 12px; }
+        .act-value { font-weight: 700; font-size: 15px; }
+        .act-value.pos { color: #1a8c4e; }
+        .act-value.neg { color: #c0392b; }
+
+        .token-badge {
+            display: inline-block;
+            background: #fff8e1;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            padding: 2px 7px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            font-weight: 600;
+            color: #7a5900;
+            margin-bottom: 7px;
+        }
+
+        .context-box {
+            background: #f6f7fa;
+            border-radius: 4px;
+            padding: 8px 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.55;
+            color: #222;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .context-box .hl, .full-ctx-box .hl {
+            background: #fff3cd;
+            border-radius: 2px;
+            padding: 1px 3px;
+            font-weight: 700;
+            color: #7a5900;
+        }
+
+        .toggle-link {
+            background: none;
+            border: none;
+            color: #0f3460;
+            font-size: 12px;
+            cursor: pointer;
+            text-decoration: underline;
+            padding: 4px 0;
+            margin-top: 5px;
+            display: inline-block;
+        }
+        .toggle-link:hover { color: #164e8c; }
+
+        .full-ctx {
+            display: none;
+            margin-top: 6px;
+        }
+        .full-ctx.show { display: block; }
+        .full-ctx-box {
+            background: #f0f2f7;
+            border-radius: 4px;
+            padding: 10px 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            color: #222;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 320px;
+            overflow-y: auto;
+        }
+
+        .empty-bucket { color: #aab; font-size: 13px; font-style: italic; }
+
+        /* ---- Search ---- */
+        .search-bar {
+            padding: 16px 30px;
+            background: #eef2f7;
+            border-bottom: 2px solid #e0e4ed;
+            display: flex;
+            gap: 14px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .search-results {
+            padding: 20px 30px;
+            border-bottom: 2px solid #e0e4ed;
+            display: none;
+        }
+        .search-results.show { display: block; }
+        .search-results h3 { margin-bottom: 14px; color: #1a1a2e; font-size: 14px; font-weight: 600; }
+
+        .search-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        .search-card {
+            border: 1.5px solid #c8d8e8;
+            border-radius: 8px;
+            padding: 12px 14px;
+            cursor: pointer;
+            background: #fff;
+            transition: all .18s;
+        }
+        .search-card:hover {
+            border-color: #0f3460;
+            box-shadow: 0 4px 12px rgba(15,52,96,.12);
+            transform: translateY(-2px);
+        }
+        .sc-header { display: flex; justify-content: space-between; margin-bottom: 4px; }
+        .sc-feature { font-weight: 700; color: #0f3460; }
+        .sc-hits    { font-weight: 600; color: #2e7d32; font-size: 13px; }
+        .sc-snippet {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: #444;
+            margin-top: 6px;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+        .sc-snippet .phrase-hl {
+            color: #c0392b;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Feature Activation Viewer</h1>
+        <p>Top · Bottom · Random activations per feature — backed by DuckDB</p>
+    </div>
+
+    <div class="controls">
+        <div class="form-group">
+            <label>Layer</label>
+            <input type="number" id="layer" placeholder="0" min="0">
+        </div>
+        <div class="form-group">
+            <label>Feature <span style="font-weight:400;color:#aab">(blank = all)</span></label>
+            <input type="number" id="feature" placeholder="42" min="0">
+        </div>
+        <div class="form-group">
+            <label>N per bucket</label>
+            <input type="number" id="n" value="20" min="1" max="500" style="width:72px">
+        </div>
+        <button class="btn btn-primary" id="loadBtn" onclick="load()">Load</button>
+        <button class="btn btn-secondary btn-sm" onclick="loadInfo()">DB Info</button>
+    </div>
+
+    <!-- Search bar -->
+    <div class="search-bar">
+        <div class="form-group">
+            <label>Search phrase in activating documents</label>
+            <input type="text" id="searchPhrase" placeholder="e.g. mathematics, London, the ...">
+        </div>
+        <div class="form-group">
+            <label>Layer</label>
+            <input type="number" id="searchLayer" placeholder="0" min="0" style="width:72px">
+        </div>
+        <div class="form-group">
+            <label>Bucket</label>
+            <select id="searchBucket">
+                <option value="top">top</option>
+                <option value="bottom">bottom</option>
+                <option value="random">random</option>
+            </select>
+        </div>
+        <button class="btn btn-search" onclick="runSearch()">Search</button>
+        <button class="btn btn-secondary" onclick="clearSearch()">Clear</button>
+    </div>
+
+    <!-- Search results -->
+    <div class="search-results" id="searchResults">
+        <h3 id="searchResultsTitle"></h3>
+        <div class="search-grid" id="searchGrid"></div>
+    </div>
+
+    <div class="results" id="results">
+        <div class="hint">
+            <h3>Enter a layer (and optionally a feature) then click Load</h3>
+            <p>Leave Feature blank to browse the full layer summary</p>
+        </div>
+    </div>
+</div>
+
+<script>
+// Works locally and through a reverse proxy (relative paths)
+const BASE = '.';
+
+function esc(s) {
+    if (s == null) return '';
+    const d = document.createElement('div');
+    d.textContent = String(s);
+    return d.innerHTML;
+}
+
+function actClass(v) { return v >= 0 ? 'pos' : 'neg'; }
+
+async function load() {
+    const layer   = document.getElementById('layer').value.trim();
+    const feature = document.getElementById('feature').value.trim();
+    const n       = document.getElementById('n').value.trim() || '20';
+    const btn     = document.getElementById('loadBtn');
+    const results = document.getElementById('results');
+
+    if (!layer) {
+        results.innerHTML = '<div class="error">Please enter a layer number.</div>';
+        return;
+    }
+
+    btn.disabled = true;
+    results.innerHTML = '<div class="hint"><p>Loading...</p></div>';
+
+    try {
+        let url = `${BASE}/feature?layer=${layer}&n=${n}`;
+        if (feature !== '') url += `&feature=${feature}`;
+
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+
+        if (feature !== '') {
+            renderDetail(data);
+        } else {
+            renderLayerSummary(data);
+        }
+    } catch (e) {
+        results.innerHTML = `<div class="error"><strong>Error:</strong> ${esc(e.message)}<br><small>Is the server running? <code>python max_activations/feature_server.py</code></small></div>`;
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+function clearSearch() {
+    document.getElementById('searchPhrase').value = '';
+    document.getElementById('searchResults').classList.remove('show');
+    document.getElementById('searchGrid').innerHTML = '';
+}
+
+async function runSearch() {
+    const phrase = document.getElementById('searchPhrase').value.trim();
+    const layer  = document.getElementById('searchLayer').value.trim();
+    const bucket = document.getElementById('searchBucket').value;
+    const panel  = document.getElementById('searchResults');
+    const grid   = document.getElementById('searchGrid');
+    const title  = document.getElementById('searchResultsTitle');
+
+    if (!phrase || !layer) {
+        alert('Enter both a phrase and a layer number.');
+        return;
+    }
+
+    title.textContent = 'Searching...';
+    panel.classList.add('show');
+    grid.innerHTML = '';
+
+    try {
+        const resp = await fetch(`${BASE}/search?layer=${layer}&phrase=${encodeURIComponent(phrase)}&bucket=${bucket}&limit=100`);
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+
+        title.textContent = `"${phrase}" in ${bucket} docs — layer ${layer} — ${data.results.length} features found, sorted by hits`;
+
+        if (data.results.length === 0) {
+            grid.innerHTML = '<div class="empty-bucket">No features found containing this phrase.</div>';
+            return;
+        }
+
+        grid.innerHTML = data.results.map(r => {
+            let snippetHtml = '';
+            if (r.snippet) {
+                const re = new RegExp('(' + r.phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+                // split on phrase matches, escape each part separately, reassemble
+                const parts = r.snippet.split(re);
+                const highlighted = parts.map((p, i) =>
+                    re.test(p) ? `<span class="phrase-hl">${esc(p)}</span>` : esc(p)
+                ).join('');
+                snippetHtml = `<div class="sc-snippet">${highlighted}</div>`;
+            }
+            return `
+            <div class="search-card" onclick="drillFeature(${layer}, ${r.feature})">
+                <div class="sc-header">
+                    <span class="sc-feature">Feature ${r.feature}</span>
+                    <span class="sc-hits">${r.hits} hit${r.hits > 1 ? 's' : ''}</span>
+                </div>
+                <div class="sc-max">max act: ${r.max_activation.toFixed(3)}</div>
+                ${snippetHtml}
+            </div>`;
+        }).join('');
+    } catch(e) {
+        title.textContent = 'Error: ' + e.message;
+    }
+}
+
+// Allow Enter on search phrase input
+document.getElementById('searchPhrase').addEventListener('keypress', e => {
+    if (e.key === 'Enter') runSearch();
+});
+
+async function loadInfo() {
+    const results = document.getElementById('results');
+    try {
+        const resp = await fetch(`${BASE}/info`);
+        const d    = await resp.json();
+        results.innerHTML = `
+            <div class="detail-header">
+                <h2>Database Info</h2>
+                <p>Layers: ${d.min_layer} – ${d.max_layer} &nbsp;|&nbsp; Distinct features: ${d.num_features}</p>
+            </div>`;
+    } catch(e) {
+        results.innerHTML = `<div class="error">${esc(e.message)}</div>`;
+    }
+}
+
+function renderLayerSummary(data) {
+    const results = document.getElementById('results');
+    if (!data.features || data.features.length === 0) {
+        results.innerHTML = `<div class="error">No features found for layer ${data.layer}</div>`;
+        return;
+    }
+
+    let html = `
+        <div class="layer-info">
+            <h2>Layer ${data.layer} — ${data.features.length} features</h2>
+            <p>Click any card to drill into top / bottom / random activations</p>
+        </div>
+        <div class="features-grid">`;
+
+    data.features.forEach(f => {
+        html += `
+            <div class="feature-card" onclick="drillFeature(${data.layer}, ${f.feature})">
+                <div class="fc-header">
+                    <span class="fc-num">Feature ${f.feature}</span>
+                    <span class="fc-maxact">▲ ${f.max_activation.toFixed(3)}</span>
+                </div>
+                <div class="fc-range">
+                    <span class="fc-minact">▼ ${f.min_activation.toFixed(3)}</span>
+                    &nbsp; range: ${(f.max_activation - f.min_activation).toFixed(3)}
+                </div>
+            </div>`;
+    });
+
+    html += '</div>';
+    results.innerHTML = html;
+}
+
+function drillFeature(layer, feature) {
+    document.getElementById('layer').value   = layer;
+    document.getElementById('feature').value = feature;
+    // sync search layer field too so round-trips stay consistent
+    document.getElementById('searchLayer').value = layer;
+    // scroll to results
+    document.getElementById('results').scrollIntoView({behavior: 'smooth'});
+    load();
+}
+
+function renderDetail(data) {
+    const results = document.getElementById('results');
+
+    const topMax  = data.top.length    ? data.top[0].activation    : null;
+    const botMin  = data.bottom.length ? data.bottom[0].activation : null;
+
+    let html = `
+        <button class="btn btn-secondary btn-sm" onclick="goBack()" style="margin-bottom:16px">← Back to layer ${data.layer}</button>
+        <div class="detail-header">
+            <h2>Layer ${data.layer}, Feature ${data.feature}</h2>
+            <p>
+                Max activation: <strong>${topMax != null ? topMax.toFixed(4) : 'n/a'}</strong>
+                &nbsp;|&nbsp;
+                Min activation: <strong>${botMin != null ? botMin.toFixed(4) : 'n/a'}</strong>
+                &nbsp;|&nbsp;
+                Top: ${data.top.length} &nbsp; Bottom: ${data.bottom.length} &nbsp; Random: ${data.random.length}
+            </p>
+        </div>
+        <div class="buckets">
+            <div class="bucket-section bucket-top">
+                <h3>Top activations (highest)</h3>
+                ${renderBucket(data.top)}
+            </div>
+            <div class="bucket-section bucket-bottom">
+                <h3>Bottom activations (lowest)</h3>
+                ${renderBucket(data.bottom)}
+            </div>
+            <div class="bucket-section bucket-random">
+                <h3>Random samples</h3>
+                ${renderBucket(data.random)}
+            </div>
+        </div>`;
+
+    results.innerHTML = html;
+}
+
+function renderBucket(items) {
+    if (!items || items.length === 0) {
+        return '<div class="empty-bucket">No data</div>';
+    }
+    return items.map((item, i) => {
+        const hasContext = item.token != null;
+        const ctxHtml = hasContext
+            ? `<div class="context-box">${esc(item.context_before)}<span class="hl">${esc(item.token)}</span>${esc(item.context_after)}</div>`
+            : `<div class="context-box" style="color:#aab">token decode unavailable (data_id=${item.data_id}, pos=${item.token_pos})</div>`;
+
+        const uid = `${item.bucket}-${item.data_id}-${item.token_pos}-${i}`;
+        const hasFullText = item.full_before != null;
+        const fullTextHtml = hasFullText ? `
+            <button class="toggle-link" onclick="toggleFull('${uid}', this)">Show full text</button>
+            <div class="full-ctx" id="full-${uid}">
+                <div class="full-ctx-box">${esc(item.full_before)}<span class="hl">${esc(item.token)}</span>${esc(item.full_after)}</div>
+            </div>` : '';
+
+        return `
+            <div class="act-item">
+                <div class="act-meta">
+                    <span class="act-rank">#${i+1} &nbsp; pos ${item.token_pos}</span>
+                    <span class="act-value ${actClass(item.activation)}">${item.activation.toFixed(4)}</span>
+                </div>
+                ${hasContext ? `<div class="token-badge">${esc(item.token)}</div>` : ''}
+                ${ctxHtml}
+                ${fullTextHtml}
+            </div>`;
+    }).join('');
+}
+
+function toggleFull(uid, btn) {
+    const el = document.getElementById('full-' + uid);
+    const showing = el.classList.toggle('show');
+    btn.textContent = showing ? 'Hide full text' : 'Show full text';
+}
+
+function goBack() {
+    document.getElementById('feature').value = '';
+    load();
+}
+
+// Allow Enter key
+['layer','feature','n'].forEach(id => {
+    document.getElementById(id).addEventListener('keypress', e => {
+        if (e.key === 'Enter') load();
+    });
+});
+</script>
+</body>
+</html>
